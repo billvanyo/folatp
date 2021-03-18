@@ -324,12 +324,16 @@
            pruned-map
            (assoc pruned-map index {:fmlas filtered-fmlas})))))))
 
-
 (defn attempt-proof
   [tableau max-gamma]
   (reset-gensymbols)
   (loop [tableau tableau
          counter 1]
+    ;; uncomment following to see intermediate trees
+    #_(do
+      (println "step" counter)
+      (print-tree (convert-tree-map (:tree-map tableau) nil))
+      (println "\n\n"))
     (cond
       (not (empty? (:closing-substs (get (:tree-map tableau) 0)))) ; success
       ;; TODO - if more than one substitution, print alternate proofs or shortest proof?
@@ -341,6 +345,7 @@
         (println)
         (print-tree printable-tree)
         (println)
+        ; print unpruned tree
         ;(print-tree (convert-tree-map (:tree-map tableau) (:subst closing-subst)))
         true)
 
@@ -351,4 +356,63 @@
 
       :else
       (recur (single-step tableau) (inc counter)))))
+
+;; demo forms
+(comment
+
+  ;; A ⊃ B, B ⊃ C, C ⊃ D ... then A ⊃ D
+  (def tab1 (init-tableau (list '((A) imp (B)) '((B) imp (C)) '((C) imp (D))) '((A) imp (D))))
+  (attempt-proof tab1 1)
+
+  ;; ((P ∧ (Q ⊃ (R ∨ S))) ⊃ (P ∨ Q))
+  (def tab2 (init-tableau () '(((P) and ((Q) imp ((R) or (S)))) imp ((P) or (Q)))))
+  (attempt-proof tab2 1)
+
+
+  ;; transitivity + symmetry + nontriviality -> reflexivity
+  (def transitivity '(forall x (forall y (forall z (((R x y) and (R y z)) imp (R x z))))))
+  (def symmetry '(forall x (forall y ((R x y) imp (R y x)))))
+  (def nontriviality '(forall x (exists y (R x y))))
+  (def reflexivity '(forall x (R x x)))
+  (def tab3 (init-tableau (list transitivity symmetry nontriviality) reflexivity))
+  (attempt-proof tab3 8)
+
+  ;; z is both a multiple of 2 and a multiple of 3
+  (def ax1 '((P (z)) and (Q (z))))
+  ;; if x is multiple of 2, then x+2 is a multiple of 2
+  (def ax2 '(forall x ((P x) imp (P (s (s x))))))
+  ;; if x is multiple of 3, then x+3 is a multiple of 3
+  (def ax3 '(forall x ((Q x) imp (Q (s (s (s x)))))))
+  ;; for some x, x+1 is both a multiple of 2 and a multiple of 3
+  (def goal '(exists x ((P (s x)) and (Q (s x)))))
+  (def tab4 (init-tableau (list ax1 ax2 ax3) goal))
+  (attempt-proof tab4 28)
+
+  ;; drinker paradox: there is some person such that if that person drinks, everyone drinks
+  (def drinkers-paradox '(exists person ((drinks person) imp (forall people (drinks people)))))
+  (def tab5 (init-tableau () drinkers-paradox))
+  (attempt-proof tab5 3)
+
+  (def ax1 '(forall x ((P x) imp (exists y (Q y)))))
+  (def ax2 '(forall x ((P x) imp (exists y (R y)))))
+  (def ax3 '(P (x)))
+  (def obv1 '(exists y (Q y)))
+  (def obv2 '(exists y (P y)))
+  ;; not a theorem
+  (def not-obv '(exists y ((Q y) and (P y))))
+  (def tab6 (init-tableau (list ax1 ax2 ax3) not-obv))
+  (attempt-proof tab6 3)
+
+  ;; not a theorem
+  ;; uncomment lines at start of attempt-proof to see steps
+  ;; illustrates need for skolem functions (and occurs check in unification ... see https://en.wikipedia.org/wiki/Occurs_check )
+  (def ax '(forall x ((exists y (P x y)) or (exists y (Q x y)))))
+  (def goal '(exists x ((P x x) or (Q x x))))
+  (def tab7 (init-tableau (list ax) goal))
+
+  ;; unification examples with skolem functions.  second one would unify without occurs check
+  (unify-terms '(P x2 x2) '(P x4 y5))
+  (unify-terms '(P x2 x2) '(P x4 (y5 x4)))
+  (unify-terms '(P x2 x2) '(P x4 (y5 x6)))
+  )
 

@@ -5,9 +5,8 @@
 
 (ns folatp.formula-queue
   (:require [folatp.formulas :refer :all]
+            [clojure.data.priority-map :refer [priority-map-by]]
 ))
-
-(use 'clojure.data.priority-map)
 
 (def fmla-type-priorities
   {:atomic 0
